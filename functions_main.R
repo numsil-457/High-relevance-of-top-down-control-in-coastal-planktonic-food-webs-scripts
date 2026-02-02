@@ -522,3 +522,26 @@ attenuation = function(sal, spm){
   Kd = Kb + Kspm # Attenuation coeff.
   return(Kd)
 }  
+
+#### Read the NAO data from NOAA
+read.nao = function(){
+  # Read the NAO information from NOAA
+  df = read_html('https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/norm.nao.monthly.b5001.current.ascii.table')
+  x = html_nodes(df, 'p')
+  x = x %>% html_text()
+  
+  # Convert the html text to a dataframe
+  x1 = strsplit(x, ' ')[[1]]
+  x1 = strsplit(x, '\\s|\\n', fixed=F)[[1]]
+  x1 = x1[-which(x1=='')]
+  
+  xmat = matrix(c('', x1), ncol = 13, byrow=T)
+  nao = matrix(data.matrix(xmat[-1,2:13]), ncol=1)
+  timeseq = rep(xmat[-1,1], each = 12)
+  mthseq = rep(1:12, length( unique(timeseq) ))
+  naof = data.frame(yr = as.numeric(timeseq), 
+                    mth = as.numeric(mthseq), 
+                    nao = as.numeric(nao))
+  
+  return(naof)
+}

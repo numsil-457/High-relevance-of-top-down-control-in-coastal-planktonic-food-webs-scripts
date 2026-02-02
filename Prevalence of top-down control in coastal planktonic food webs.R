@@ -5,29 +5,25 @@
 # for all figures in the results section
 
 ####
-
 library(plyr)      # To work with dataframes  
 library(lubridate) # To manage the dates
 library(stats)
 library(gridExtra)
+library(rvest)     # Read dataframes from webpages
 #library(lme4)     # Package for GLMMs
 source('functions_main.R')
 
-#### Pull the datasets in Git repositories
-system("git clean -f") # Remove untracked files from the repository (Clean up before pulling the data)
-# Pull the data from another repository
-system("git pull https://github.com/numsil-457/Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets.git --allow-unrelated-histories")
-system("git reset HEAD~") # Remove any commits to avoid pushing by mistake
-
 #### Phytoplankton data
-stationf = read.csv("Phytoplankton_NLWKN.csv")
+stationf = read.csv("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Phytoplankton_NLWKN.csv",
+                    skip=4)
 
 #### Mixotrophs data
-dino.ess = read.csv("Mixotrophs_NLWKN.csv")
+dino.ess = read.csv("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Mixotrophs_NLWKN.csv",
+                    skip=4)
 dino.ess = dino.ess[-which(dino.ess$bioC==0),] # Remove the taxa absent from the samples
 
 #### Fish landings data
-datah = read.csv("fishlandings.csv", skip=4, header=T) # Extracting the dataset
+datah = read.csv("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/fishlandings.csv", skip=4, header=T) # Extracting the dataset
 planktinames = c( "Hering" ) # Focus on Herring
 
 dataf = fish.approx(datah, planktinames) # Herring
@@ -40,7 +36,8 @@ dataf = dataf[ind, ] # There are not much data before 2013
 dataf$date = ymd( paste( dataf$year, "-", dataf$month, "-15", sep = "" ) )
 
 #### Zoo data
-data = read.csv("Zooplankton_NLWKN.csv")
+data = read.csv("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Zooplankton_NLWKN.csv",
+                skip=4)
 data$Date = ymd( data$Date )
 
 # Removing lines where no OPS is available
@@ -48,7 +45,11 @@ data.ops = data[ -which( is.na(data$ops) ), ]
 data$ops.alt = NA
 
 ## Environmental forcing data (Nutrients, Temperature, Salinity)
-waddenEnvtot = read.table("Environment.csv", header = TRUE, sep=",")
+waddenEnvtot = read.table("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Environment.csv", header = TRUE, sep=",",
+                          skip=4)
+solar.data = read.table("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Surface_irradiance.csv", header = TRUE, sep=",",
+                        skip=8)
+waddenEnvtot = merge(waddenEnvtot, solar.data[c('USI', 'I0')], by='USI')
 waddenEnvtot = waddenEnvtot[ which( waddenEnvtot$StationID %in% unique(stationf$stationID) | waddenEnvtot$StationID %in% unique(data$Station) ), ] # Remove stations where no plankton information
 statin = waddenEnvtot$StationID
 
@@ -2150,23 +2151,19 @@ axbc = specapprox(1/axbc$freq, axbc$spec, cut=T, span = 0.04) # OK
 scaleplot(axbc, xmax, "chartreuse3", stacker = 0, lwd = linew)
 
 #### Checking NAO (log trend) ----
-nao = read.table("nao.monthly.txt", sep="", skip=1)
-naof = matrix(data.matrix(nao[,2:13]), ncol=1)
-timeseq = rep(nao$V1, each = 12)
-mthseq = rep(1:12, length(nao$V1))
+naof = read.nao()
 
-naof = data.frame(yr = timeseq, mth = mthseq, nao = naof)
 naof$trend = filter( naof$nao, filter=filter.wind, sides=2, method="convolution")
 naof$date = ymd( paste(naof$yr, "-", naof$mth, "-01", sep="") )
 
-#test.student(naof$mth, naof$yr, naof$nao)
-naof$nao = norm.stud(293, naof$nao) # Shift at indice 293
+ind.shift = test.student(naof$mth, naof$yr, naof$nao) ; dev.off()
+naof$nao = norm.stud(ind.shift, naof$nao) # Shift at indice 293
 
 ind.na = which(is.na(naof$trend))
 specnao = spec.pgram(fast=T, naof$trend[-ind.na], demean=T, plot=F)
 
 # Smoothing using a filter moving average
-f3 = c(1, 2, 1) / 4
+f3 = c(1, 2, 1) / 5
 spa = filter( specnao$spec, filter = f3 )
 plot(1/specnao$freq, specnao$spec, type="l", xlim = c(0, 48), ylim = c(0,2))
 lines( 1/specnao$freq, spa, col = "red" )
@@ -2182,7 +2179,8 @@ lines( axnaox, axnao, col = "red" )
 axnao = list( axnaox, axnao ) # Stacking the data
 
 #### Checking wind 2 (CDC) ----
-wind22 = read.table("Wind_DWD.txt", sep=";", header=T)
+wind22 = read.table("Prevalence-of-top-down-control-in-coastal-planktonic-food-webs-datasets/Wind_DWD.txt", 
+                    sep=";", header=T, skip=4)
 
 # Removing non valid lines
 ind.not.to = which(wind22$FK_TER == -999 | wind22$DK_TER == -999)
